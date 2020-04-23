@@ -1,0 +1,6 @@
+numpy==1.18.3
+onnx==1.6.0
+paho-mqtt==1.5.0
+protobuf==3.11.3
+six==1.14.0
+typing-extensions==3.7.4.2
