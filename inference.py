@@ -35,33 +35,81 @@ class Network:
     """
 
     def __init__(self):
-        ### TODO: Initialize any class variables desired ###
+        self.plugin = None
+        self.network = None
+        self.input_blob = None
+        self.output_blob = None
+        self.exec_network = None
+        self.infer_request = None
+        self.net_plugin = None
 
-    def load_model(self):
+    def load_model(self, model, device="CPU", cpu_extension=None, num_requests):
         ### TODO: Load the model ###
         ### TODO: Check for supported layers ###
         ### TODO: Add any necessary extensions ###
         ### TODO: Return the loaded inference plugin ###
         ### Note: You may need to update the function parameters. ###
-        return
+
+
+        #Loading model
+        model_xml = model
+        model_bin = os.path.splitext(model_xml)[0] + ".bin"
+
+        # Initialize the plugin
+        self.plugin = IECore()
+
+        # Read the IR as a IENetwork
+        self.network = IENetwork(model=model_xml, weights=model_bin)
+
+        #Check for unsupported layers
+        supported_layers = self.plugin.get_supported_layers(self.network)
+            not_supported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
+            if len(not_supported_layers) != 0:
+                log.error("[ERROR] Some layers are not supported by CPU {}". format(' '.join(not_supported_layers)))
+                sys.exit(1)
+
+
+        #requests?
+        # Add CPU extension if applicable
+        if cpu_extension and "CPU" in device:
+            self.plugin.add_extension(cpu_extension, device)
+
+        if num_requests == 0:
+            # Loads network read from IR to the plugin
+            self.net_plugin = self.plugin.load(network=self.network)
+        else:
+            self.net_plugin = self.plugin.load(network=self.network, num_requests=num_requests)
+
+        # Get the input layer
+        self.input_blob = next(iter(self.network.inputs))
+        self.output_blob = next(iter(self.network.outputs))
+
+        return self.plugin
+        #, self.get_input_shape()
 
     def get_input_shape(self):
-        ### TODO: Return the shape of the input layer ###
-        return
+        ### Return the shape of the input layer ###
+        return self.net.inputs[self.input_blob].shape
 
     def exec_net(self):
         ### TODO: Start an asynchronous request ###
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
-        return
+        self.infer_request_handle = self.net_plugin.start_async(request_id=request_id, inputs={self.input_blob: frame})
+        return self.net_plugin
 
     def wait(self):
         ### TODO: Wait for the request to be complete. ###
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
-        return
+        wait_process = self.net_plugin.requests[request_id].wait(-1)
+        return wait_process
 
-    def get_output(self):
+    def get_output(self, ):
         ### TODO: Extract and return the output results
         ### Note: You may need to update the function parameters. ###
-        return
+        if output:
+            res = self.infer_request_handle.outputs[output]
+        else:
+            res = self.net_plugin.requests[request_id].outputs[self.out_blob]
+        return res
