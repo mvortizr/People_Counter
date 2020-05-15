@@ -39,11 +39,10 @@ class Network:
         self.network = None
         self.input_blob = None
         self.output_blob = None
-        self.exec_network = None
         self.infer_request = None
         self.net_plugin = None
 
-    def load_model(self, model, device="CPU", cpu_extension=None, num_requests):
+    def load_model(self, model, plugin=None, device="CPU",cpu_extension=None,num_requests):
         ### TODO: Load the model ###
         ### TODO: Check for supported layers ###
         ### TODO: Add any necessary extensions ###
@@ -51,28 +50,34 @@ class Network:
         ### Note: You may need to update the function parameters. ###
 
 
-        #Loading model
+        # Getting the reference of the model
         model_xml = model
         model_bin = os.path.splitext(model_xml)[0] + ".bin"
 
-        # Initialize the plugin
-        self.plugin = IECore()
+        # Initialize the plugin for the device
+        if not plugin:
+            log.info("Initializing plugin for {} device...".format(device))
+            self.plugin = IEPlugin(device = device)
+        else:
+            self.plugin = plugin
 
+
+        #Add CPU extension if applicable
+        if cpu_extension and 'CPU' in device:
+            self.plugin.add_cpu_extension(cpu_extension)
+
+       
         # Read the IR as a IENetwork
         self.network = IENetwork(model=model_xml, weights=model_bin)
 
         #Check for unsupported layers
-        supported_layers = self.plugin.get_supported_layers(self.network)
-            not_supported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
-            if len(not_supported_layers) != 0:
-                log.error("[ERROR] Some layers are not supported by CPU {}". format(' '.join(not_supported_layers)))
-                sys.exit(1)
+        if self.plugin.device == "CPU":
+            supported_layers = self.plugin.get_supported_layers(self.network)
+                not_supported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
+                if len(not_supported_layers) != 0:
+                    log.error("[ERROR] Some layers are not supported by CPU {}". format(' '.join(not_supported_layers)))
+                    sys.exit(1)
 
-
-        #requests?
-        # Add CPU extension if applicable
-        if cpu_extension and "CPU" in device:
-            self.plugin.add_extension(cpu_extension, device)
 
         if num_requests == 0:
             # Loads network read from IR to the plugin
@@ -84,28 +89,28 @@ class Network:
         self.input_blob = next(iter(self.network.inputs))
         self.output_blob = next(iter(self.network.outputs))
 
-        return self.plugin
-        #, self.get_input_shape()
+        return self.plugin, self.get_input_shape()
+       
 
     def get_input_shape(self):
         ### Return the shape of the input layer ###
-        return self.net.inputs[self.input_blob].shape
+        return self.network.inputs[self.input_blob].shape
 
-    def exec_net(self):
+    def exec_net(self,request_id,frame):
         ### TODO: Start an asynchronous request ###
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
         self.infer_request_handle = self.net_plugin.start_async(request_id=request_id, inputs={self.input_blob: frame})
         return self.net_plugin
 
-    def wait(self):
+    def wait(self,request_id):
         ### TODO: Wait for the request to be complete. ###
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
         wait_process = self.net_plugin.requests[request_id].wait(-1)
         return wait_process
 
-    def get_output(self, ):
+    def get_output(self, request_id, output=None):
         ### TODO: Extract and return the output results
         ### Note: You may need to update the function parameters. ###
         if output:
