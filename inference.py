@@ -56,7 +56,6 @@ class Network:
 
         # Initialize the plugin for the device
         if not plugin:
-            log.info("Initializing plugin for {} device...".format(device))
             self.plugin = IEPlugin(device = device)
         else:
             self.plugin = plugin
@@ -89,7 +88,7 @@ class Network:
         self.input_blob = next(iter(self.network.inputs))
         self.output_blob = next(iter(self.network.outputs))
 
-        return self.plugin, self.get_input_shape()
+        return self.plugin
        
 
     def get_input_shape(self):
@@ -97,22 +96,17 @@ class Network:
         return self.network.inputs[self.input_blob].shape
 
     def exec_net(self,request_id,frame):
-        ### TODO: Start an asynchronous request ###
-        ### TODO: Return any necessary information ###
-        ### Note: You may need to update the function parameters. ###
+        ### Start an asynchronous request ###
         self.infer_request_handle = self.net_plugin.start_async(request_id=request_id, inputs={self.input_blob: frame})
         return self.net_plugin
 
     def wait(self,request_id):
-        ### TODO: Wait for the request to be complete. ###
-        ### TODO: Return any necessary information ###
-        ### Note: You may need to update the function parameters. ###
+        ###  Wait for the request to be complete. ###
         wait_process = self.net_plugin.requests[request_id].wait(-1)
         return wait_process
 
     def get_output(self, request_id, output=None):
-        ### TODO: Extract and return the output results
-        ### Note: You may need to update the function parameters. ###
+        ### Extract and return the output results
         if output:
             res = self.infer_request_handle.outputs[output]
         else:

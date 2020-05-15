@@ -67,10 +67,14 @@ def build_argparser():
                         "(0.5 by default)")
     return parser
 
+def process_output():
+    pass
+
 
 def connect_mqtt():
-    ### TODO: Connect to the MQTT client ###
-    client = None
+    ### Connect to the MQTT client ###
+    client = mqtt.Client()
+    client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE_INTERVAL)
 
     return client
 
@@ -84,12 +88,23 @@ def infer_on_stream(args, client):
     :param client: MQTT client
     :return: None
     """
-    # Initialise the class
-    infer_network = Network()
+
+    #Interesting variables
+    current_request = 0
+    last_count = 0
+    total_people = 0
+    start_time = 0
+   
     # Set Probability threshold for detections
     prob_threshold = args.prob_threshold
 
-    ### TODO: Load the model through `infer_network` ###
+
+    # Initialise IE
+    infer_network = Network()
+
+
+    # Load the network to IE plugin to get shape of input layer
+    #n, c = infer_network.load_model(args.model, args.device, ..
 
     ### TODO: Handle the input stream ###
 
