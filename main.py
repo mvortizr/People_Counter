@@ -51,7 +51,7 @@ def build_argparser():
     parser.add_argument("-m", "--model", required=True, type=str,
                         help="Path to an xml file with a trained model.")
     parser.add_argument("-i", "--input", required=True, type=str,
-                        help="Path to image or video file")
+                        help="Path to image, video file. To use Videocamera write VIDEOCAMERA. ")
     parser.add_argument("-l", "--cpu_extension", required=False, type=str,
                         default=None,
                         help="MKLDNN (CPU)-targeted custom layers."
@@ -75,6 +75,44 @@ def connect_mqtt():
     client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE_INTERVAL)
     return client
 
+def handleInputStream(input):
+    
+    single_image_mode = False
+    input_stream = input
+    
+    # Videocamera
+    if input == 'VIDEOCAMERA':
+        input_stream = 0
+
+    # Image - select image mode
+    elif input.endswith('.jpg') or input.endswith('.bmp') :
+        single_image_mode = True
+
+    # Video file - check if exists
+    else:
+        assert os.path.isfile(input), "[ERROR] File doesn't exist"
+    
+    return input_stream,single_image_mode
+
+def preprocess_frame(frame,n,c,h,w): 
+    # Resize and change channels
+    image = cv2.resize(frame, (w, h))
+    image = image.transpose((2, 0, 1))
+    image = image.reshape((n, c, h, w))
+    return image
+
+def handle_output(frame, result, init_w,init_h,prob_threshold):
+    #Draws output boxes from the result
+    current_count = 0
+    for obj in result[0][0]:
+        if obj[2] > prob_threshold:
+            xmin = int(obj[3] * init_w)
+            ymin = int(obj[4] * init_h)
+            xmax = int(obj[5] * init_w)
+            ymax = int(obj[6] * init_h)
+            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 55, 255), 1)
+            current_count = current_count + 1
+    return frame, current_count
 
 def infer_on_stream(args, client):
     """
@@ -85,44 +123,117 @@ def infer_on_stream(args, client):
     :param client: MQTT client
     :return: None
     """
-    #Important variables
+    ### INITIALIZE IMPORTANT VARIABLES ###
+    
+    #Current request id 
     current_req=0
     
-
+    #Current count of people
+    current_count=0
+    
+    #Last count of people
+    last_count=0
+    
+    #Total count of people
+    total_count=0
+    
+    #Setting threshold
+    prob_threshold = args.prob_threshold
+    
+    ### INFERENCE ###
+    
     # Initialise the class
     infer_network = Network()
-    # Set Probability threshold for detections
-    prob_threshold = args.prob_threshold
-
+   
     ### Load the model through `infer_network` ###
     n, c, h, w = infer_network.load_model(args.model, current_req,None,args.device,args.cpu_extension)[1]
     ##shape 1x3x320x544
 
-    ### TODO: Handle the input stream ###
+    ### Handle the input stream ###
+    
+    input_stream, single_image_mode = handleInputStream(args.input)
+      
+    cap = cv2.VideoCapture(input_stream)
+    
+    if input_stream:
+        cap.open(args.input)
 
-    ### TODO: Loop until stream is over ###
+    if not cap.isOpened():
+        log.error("[ERROR] Missing video source")
+        
+    #Setting initial width and height
+    init_w = cap.get(3)
+    init_h = cap.get(4)
 
-        ### TODO: Read from the video capture ###
+    ### Loop until stream is over ###
+    while cap.isOpened():
+        
+              
+        ### Read from the video capture ###
+        flag, frame = cap.read()
+        
+        #Check if I need to exit the loop
+        if not flag:
+            break
+        key_pressed = cv2.waitKey(60)  
+        
 
-        ### TODO: Pre-process the image as needed ###
+        ### Pre-process the image ###
+        processed_frame = preprocess_frame(frame,n,c,h,w)
+    
+        
+        ### Start asynchronous inference for specified request ###
+        infer_network.exec_net(current_req, processed_frame)
 
-        ### TODO: Start asynchronous inference for specified request ###
+        ### Wait for the result ###
+        if infer_network.wait(current_req) == 0:
+            
+            ### Get result of the inference request ###
+            result = infer_network.get_output(current_req)
 
-        ### TODO: Wait for the result ###
+            ###  Extract and draw boxes from the results ###
+            frame, current_count = handle_output(frame, result, init_w, init_h,prob_threshold)
 
-            ### TODO: Get the results of the inference request ###
-
-            ### TODO: Extract any desired stats from the results ###
-
-            ### TODO: Calculate and send relevant information on ###
-            ### current_count, total_count and duration to the MQTT server ###
+            ### Calculate and send relevant information to the MQTT server (current_count, total_count,duration)###
             ### Topic "person": keys of "count" and "total" ###
             ### Topic "person/duration": key of "duration" ###
+            
+            
+            #Person enters the frame 
+            if current_count > last_count:
+                #Resets time
+                start_time = time.time()
+                #Recalculate total count
+                total_count = total_count + (current_count - last_count)
+                #Publish message to the MQTT server
+                client.publish("person", json.dumps({"total":total_count,"count": current_count}))
+            
+            #Person exits the frame 
+            if current_count < last_count:
+                #Calculate duration
+                duration = int(time.time() - start_time)
+                # Publish messages to the MQTT server
+                client.publish("person/duration", json.dumps({"duration": duration}))
+                
+            last_count = current_count
+            
+            
+            if key_pressed == 27:
+                break  
+            
+             ### Send the frame to the FFMPEG server (assuming FFMPEG server is reading stdout)###
+        
+            sys.stdout.buffer.write(frame)  
+            sys.stdout.flush()
 
-        ### TODO: Send the frame to the FFMPEG server ###
-
-        ### TODO: Write an output image if `single_image_mode` ###
-
+            ### Write an output image if `single_image_mode` ###
+            if single_image_mode:
+                cv2.imwrite('output_image.jpg', frame)
+                    
+            
+    cap.release()
+    cv2.destroyAllWindows()
+    client.disconnect()
 
 def main():
     """

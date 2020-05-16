@@ -101,5 +101,5 @@ class Network:
         if output:
             res = self.infer_request_handle.outputs[output]
         else:
-            res = self.exec_network.requests[request_id].outputs[self.out_blob]
+            res = self.exec_network.requests[request_id].outputs[self.output_blob]
         return res
