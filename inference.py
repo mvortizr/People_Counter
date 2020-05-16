@@ -25,7 +25,7 @@
 import os
 import sys
 import logging as log
-from openvino.inference_engine import IENetwork, IECore
+from openvino.inference_engine import IENetwork,IECore
 
 
 class Network:
@@ -39,56 +39,47 @@ class Network:
         self.network = None
         self.input_blob = None
         self.output_blob = None
-        self.infer_request = None
-        self.net_plugin = None
+        self.infer_request_handle = None
+        self.exec_network = None
 
-    def load_model(self, model, plugin=None, device="CPU",cpu_extension=None,num_requests):
-        ### TODO: Load the model ###
-        ### TODO: Check for supported layers ###
-        ### TODO: Add any necessary extensions ###
-        ### TODO: Return the loaded inference plugin ###
-        ### Note: You may need to update the function parameters. ###
-
+    def load_model(self, model, num_requests, plugin=None, device="CPU",cpu_extension=None):
 
         # Getting the reference of the model
         model_xml = model
         model_bin = os.path.splitext(model_xml)[0] + ".bin"
-
-        # Initialize the plugin for the device
-        if not plugin:
-            self.plugin = IEPlugin(device = device)
-        else:
-            self.plugin = plugin
-
-
-        #Add CPU extension if applicable
-        if cpu_extension and 'CPU' in device:
-            self.plugin.add_cpu_extension(cpu_extension)
-
-       
+        
         # Read the IR as a IENetwork
         self.network = IENetwork(model=model_xml, weights=model_bin)
 
-        #Check for unsupported layers
-        if self.plugin.device == "CPU":
-            supported_layers = self.plugin.get_supported_layers(self.network)
-                not_supported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
-                if len(not_supported_layers) != 0:
-                    log.error("[ERROR] Some layers are not supported by CPU {}". format(' '.join(not_supported_layers)))
-                    sys.exit(1)
-
-
-        if num_requests == 0:
-            # Loads network read from IR to the plugin
-            self.net_plugin = self.plugin.load(network=self.network)
+        # Initialize the plugin for the device
+        if not plugin:
+            self.plugin = IECore()
         else:
-            self.net_plugin = self.plugin.load(network=self.network, num_requests=num_requests)
+            self.plugin = plugin
+
+        #Add CPU extension if applicable
+        if cpu_extension and 'CPU' in device:
+            self.plugin.add_extension(cpu_extension,device)
+
+        #Check for unsupported layers 
+        if device == "CPU":     
+            supported_layers = self.plugin.query_network(network=self.network, device_name=device)  
+            unsupported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
+            if len(unsupported_layers) != 0:
+                log.error("[ERROR] Unsupported layers found: {}".format(unsupported_layers))
+                sys.exit(1)
+
+        # Loads network read from IR to the plugin   
+        if num_requests == 0:          
+            self.exec_network = self.plugin.load_network(self.network,device)
+        else:
+            self.exec_network = self.plugin.load_network(self.network, device, num_requests=num_requests)
 
         # Get the input layer
         self.input_blob = next(iter(self.network.inputs))
         self.output_blob = next(iter(self.network.outputs))
 
-        return self.plugin
+        return self.plugin, self.get_input_shape()
        
 
     def get_input_shape(self):
@@ -97,12 +88,12 @@ class Network:
 
     def exec_net(self,request_id,frame):
         ### Start an asynchronous request ###
-        self.infer_request_handle = self.net_plugin.start_async(request_id=request_id, inputs={self.input_blob: frame})
-        return self.net_plugin
+        self.infer_request_handle = self.exec_network.start_async(request_id=request_id, inputs={self.input_blob: frame})
+        return self.exec_network
 
     def wait(self,request_id):
         ###  Wait for the request to be complete. ###
-        wait_process = self.net_plugin.requests[request_id].wait(-1)
+        wait_process = self.exec_network.requests[request_id].wait(-1)
         return wait_process
 
     def get_output(self, request_id, output=None):
@@ -110,5 +101,5 @@ class Network:
         if output:
             res = self.infer_request_handle.outputs[output]
         else:
-            res = self.net_plugin.requests[request_id].outputs[self.out_blob]
+            res = self.exec_network.requests[request_id].outputs[self.out_blob]
         return res
