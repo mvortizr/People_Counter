@@ -80,7 +80,7 @@ def handleInputStream(input):
     return input_stream,single_image_mode
 
 def preprocess_frame(frame,n,c,h,w): 
-    # Resize and change channels
+    # Resize and change channels 
     image = cv2.resize(frame, (w, h))
     image = image.transpose((2, 0, 1))
     image = image.reshape((n, c, h, w))
@@ -151,7 +151,7 @@ def infer_on_stream(args, client):
     if not cap.isOpened():
         log.error("[ERROR] Missing video source")
         
-    #Setting initial width and height
+    ###Setting initial width and height###
     init_w = cap.get(3)
     init_h = cap.get(4)
 
@@ -161,7 +161,7 @@ def infer_on_stream(args, client):
         ### Read from the video capture ###
         flag, frame = cap.read()
         
-        #Check if I need to exit the loop
+        ###Check if I need to exit the loop###
         if not flag:
             break
         key_pressed = cv2.waitKey(60)  
@@ -173,15 +173,23 @@ def infer_on_stream(args, client):
         ### Start asynchronous inference for specified request ###
         infer_network.exec_net(current_req, processed_frame)
 
+        inf_start_time = time.time()
+
 
         ### Wait for the result ###
         if infer_network.wait(current_req) == 0:
             
+            ##Calculate inference time 
+            det_time = time.time() - inf_start_time
             ### Get result of the inference request ###
             result = infer_network.get_output(current_req)
 
             ###  Extract and draw boxes from the results ###
             frame, current_count = handle_output(frame, result, init_w, init_h,prob_threshold)
+
+            ##Put the inference time in the frame ###
+            time_message = "Inference time: {:.3f}ms".format(det_time * 1000)  
+            cv2.putText(frame,time_message, (15, 15),cv2.FONT_HERSHEY_COMPLEX, 0.5, (200, 10, 10), 1)
 
             ### Calculate and send relevant information to the MQTT server (current_count, total_count,duration)###
             ### Topic "person": keys of "count" and "total" ###
