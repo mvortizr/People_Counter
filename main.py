@@ -123,7 +123,7 @@ def infer_on_stream(args, client):
     :param client: MQTT client
     :return: None
     """
-    ### INITIALIZE IMPORTANT VARIABLES ###
+    ### INITIALIZE VARIABLES ###
     
     #Current request id 
     current_req=0
@@ -136,9 +136,15 @@ def infer_on_stream(args, client):
     
     #Total count of people
     total_count=0
+
+    #Start time of person in fame
+    start_time=0
+
     
     #Setting threshold
     prob_threshold = args.prob_threshold
+
+   
     
     ### INFERENCE ###
     
@@ -146,8 +152,8 @@ def infer_on_stream(args, client):
     infer_network = Network()
    
     ### Load the model through `infer_network` ###
-    n, c, h, w = infer_network.load_model(args.model, current_req,None,args.device,args.cpu_extension)[1]
-    ##shape 1x3x320x544
+    #n, c, h, w = infer_network.load_model(args.model, args.device, 1, 1,current_req, args.cpu_extension)[1]
+    n, c, h, w = infer_network.load_model(args.model, args.device,current_req, args.cpu_extension)[1]
 
     ### Handle the input stream ###
     
@@ -167,8 +173,7 @@ def infer_on_stream(args, client):
 
     ### Loop until stream is over ###
     while cap.isOpened():
-        
-              
+                    
         ### Read from the video capture ###
         flag, frame = cap.read()
         
@@ -180,10 +185,10 @@ def infer_on_stream(args, client):
 
         ### Pre-process the image ###
         processed_frame = preprocess_frame(frame,n,c,h,w)
-    
-        
+           
         ### Start asynchronous inference for specified request ###
         infer_network.exec_net(current_req, processed_frame)
+
 
         ### Wait for the result ###
         if infer_network.wait(current_req) == 0:
@@ -196,8 +201,7 @@ def infer_on_stream(args, client):
 
             ### Calculate and send relevant information to the MQTT server (current_count, total_count,duration)###
             ### Topic "person": keys of "count" and "total" ###
-            ### Topic "person/duration": key of "duration" ###
-            
+            ### Topic "person/duration": key of "duration" ###          
             
             #Person enters the frame 
             if current_count > last_count:
@@ -206,29 +210,30 @@ def infer_on_stream(args, client):
                 #Recalculate total count
                 total_count = total_count + (current_count - last_count)
                 #Publish message to the MQTT server
-                client.publish("person", json.dumps({"total":total_count,"count": current_count}))
+                client.publish("person", json.dumps({"total": total_count}))
             
-            #Person exits the frame 
+            #Person goes out the frame 
             if current_count < last_count:
                 #Calculate duration
                 duration = int(time.time() - start_time)
                 # Publish messages to the MQTT server
                 client.publish("person/duration", json.dumps({"duration": duration}))
-                
+
+            client.publish("person", json.dumps({"count": current_count}))    
             last_count = current_count
             
             
             if key_pressed == 27:
                 break  
             
-             ### Send the frame to the FFMPEG server (assuming FFMPEG server is reading stdout)###
+        ### Send the frame to the FFMPEG server (assuming FFMPEG server is reading stdout)###
         
-            sys.stdout.buffer.write(frame)  
-            sys.stdout.flush()
+        sys.stdout.buffer.write(frame)  
+        sys.stdout.flush()
 
-            ### Write an output image if `single_image_mode` ###
-            if single_image_mode:
-                cv2.imwrite('output_image.jpg', frame)
+        ### Write an output image if `single_image_mode` ###
+        if single_image_mode:
+            cv2.imwrite('output_image.jpg', frame)
                     
             
     cap.release()

@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""
- Copyright (c) 2018 Intel Corporation.
-
- Permission is hereby granted, free of charge, to any person obtaining
- a copy of this software and associated documentation files (the
- "Software"), to deal in the Software without restriction, including
- without limitation the rights to use, copy, modify, merge, publish,
- distribute, sublicense, and/or sell copies of the Software, and to
- permit persons to whom the Software is furnished to do so, subject to
- the following conditions:
-
- The above copyright notice and this permission notice shall be
- included in all copies or substantial portions of the Software.
-
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
- LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""
 
 import os
 import sys
@@ -39,10 +17,10 @@ class Network:
         self.network = None
         self.input_blob = None
         self.output_blob = None
-        self.infer_request_handle = None
+        self.infer_request = None
         self.exec_network = None
 
-    def load_model(self, model, num_requests, plugin=None, device="CPU",cpu_extension=None):
+    def load_model(self, model, device, num_requests, cpu_extension=None, plugin=None):
 
         # Getting the reference of the model
         model_xml = model
@@ -88,7 +66,7 @@ class Network:
 
     def exec_net(self,request_id,frame):
         ### Start an asynchronous request ###
-        self.infer_request_handle = self.exec_network.start_async(request_id=request_id, inputs={self.input_blob: frame})
+        self.infer_request= self.exec_network.start_async(request_id=request_id, inputs={self.input_blob: frame})
         return self.exec_network
 
     def wait(self,request_id):
@@ -99,7 +77,7 @@ class Network:
     def get_output(self, request_id, output=None):
         ### Extract and return the output results
         if output:
-            res = self.infer_request_handle.outputs[output]
+            res = self.infer_request.outputs[output]
         else:
             res = self.exec_network.requests[request_id].outputs[self.output_blob]
         return res
