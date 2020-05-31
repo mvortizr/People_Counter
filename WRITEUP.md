@@ -82,7 +82,7 @@ This model was converted using this command:
 
 Other models that I tested and could be used with this project:
  - SSD Lite MobileNet V2 COCO [(Link)](http://download.tensorflow.org/models/object_detection/ssdlite_mobilenet_v2_coco_2018_05_09.tar.gz)
-person-detection-action-recognition-0006 (is already an IR) [(Link)](https://docs.openvinotoolkit.org/latest/_models_intel_person_detection_action_recognition_0006_description_person_detection_action_recognition_0006.html)
+- person-detection-action-recognition-0006 (is already an IR) [(Link)](https://docs.openvinotoolkit.org/latest/_models_intel_person_detection_action_recognition_0006_description_person_detection_action_recognition_0006.html)
 
 ### Command used to run the app
 ```python main.py -i resources/Pedestrian_Detect_2_1_1.mp4 -m models/ssd_mobilenet_v2_coco_2018_03_29/frozen_inference_graph.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm```
