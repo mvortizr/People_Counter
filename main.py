@@ -75,7 +75,7 @@ def handleInputStream(input):
 
     # Video file - check if exists
     else:
-        assert os.path.isfile(input), "[ERROR] File doesn't exist"
+        assert os.path.isfile(input), "[ERROR] Input file is invalid or unsupported"
     
     return input_stream,single_image_mode
 
@@ -137,7 +137,6 @@ def infer_on_stream(args, client):
     infer_network = Network()
    
     ### Load the model through `infer_network` ###
-    #n, c, h, w = infer_network.load_model(args.model, args.device, 1, 1,current_req, args.cpu_extension)[1]
     n, c, h, w = infer_network.load_model(args.model, args.device,current_req, args.cpu_extension)[1]
 
     ### Handle the input stream ###
