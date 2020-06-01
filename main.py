@@ -129,6 +129,13 @@ def infer_on_stream(args, client):
     #Setting threshold
     prob_threshold = args.prob_threshold
 
+    #Amount of frames it is going to wait  
+    #before detecting a new person
+    tol_threshold = 10
+
+    #Flags for detecting a new person
+    new_person = True
+    tolerance =0
    
     
     ### INFERENCE ###
@@ -193,23 +200,38 @@ def infer_on_stream(args, client):
 
             ### Calculate and send relevant information to the MQTT server (current_count, total_count,duration)###
             ### Topic "person": keys of "count" and "total" ###
-            ### Topic "person/duration": key of "duration" ###          
+            ### Topic "person/duration": key of "duration" ###   
+
+                
             
             #Person enters the frame 
-            if current_count > last_count:
+            if (current_count > last_count) and new_person:
                 #Resets time
                 start_time = time.time()
+                #Sets the flag to calculate tolerance
+                new_person = False
                 #Recalculate total count
-                total_count = total_count + (current_count - last_count)
+                total_count += (current_count-last_count)
+                
                 #Publish message to the MQTT server
                 client.publish("person", json.dumps({"total": total_count}))
             
             #Person goes out the frame 
-            if current_count < last_count:
-                #Calculate duration
-                duration = int(time.time() - start_time)
-                # Publish messages to the MQTT server
-                client.publish("person/duration", json.dumps({"duration": duration}))
+            if (current_count <= last_count) and not new_person:
+
+                #Check some frames to see if the person has left:
+                tolerance +=1
+
+                if tolerance > tol_threshold:
+                    #Calculate duration
+                    duration = int(time.time() - start_time)
+
+                    #Reset flags
+                    new_person=True
+                    tolerance=0
+
+                    # Publish message to the MQTT server
+                    client.publish("person/duration", json.dumps({"duration": duration}))
 
             client.publish("person", json.dumps({"count": current_count}))    
             last_count = current_count
