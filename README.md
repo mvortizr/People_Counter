@@ -3,6 +3,7 @@
 | Details            |              |
 |-----------------------|---------------|
 | Programming Language: |  Python 3.5 or 3.6 |
+|OpenVINO version |  2019 R3 |
 
 ![people-counter-python](./images/people-counter-image.png)
 
