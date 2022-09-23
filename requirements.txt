@@ -2,7 +2,7 @@ numpy==1.18.3
 opencv-contrib-python==4.2.0.34
 opencv-python==4.2.0.34
 paho-mqtt==1.5.0
-protobuf==3.11.3
+protobuf==3.18.3
 PyYAML==5.3.1
 six==1.14.0
 typing-extensions==3.7.4.2
